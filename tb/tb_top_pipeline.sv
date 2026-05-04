@@ -1,34 +1,31 @@
 `timescale 1ns/1ps
 
-module tb_top;
+module tb_top_pipeline;
 
-    // ---- TEST 1 SIGNALS ----
     logic clk1, rst1;
-    top #(.HEX_FILE("programs/test1.hex")) cpu1 (
+    logic clk2, rst2;
+
+    top_pipeline #(.HEX_FILE("programs/test1.hex")) cpu1 (
         .clk (clk1),
         .rst (rst1)
     );
 
-    // ---- TEST 2 SIGNALS ----
-    logic clk2, rst2;
-    top #(.HEX_FILE("programs/test2.hex")) cpu2 (
+    top_pipeline #(.HEX_FILE("programs/test2.hex")) cpu2 (
         .clk (clk2),
         .rst (rst2)
     );
 
     initial begin
-        $dumpfile("sim/top.vcd");
-        $dumpvars(0, tb_top);
+        $dumpfile("sim/top_pipeline.vcd");
+        $dumpvars(0, tb_top_pipeline);
     end
 
-    // independent clocks for each CPU instance
     initial clk1 = 0;
     always #5 clk1 = ~clk1;
 
     initial clk2 = 0;
     always #5 clk2 = ~clk2;
 
-    // check task for cpu1
     task automatic check1(
         input [4:0]  reg_addr,
         input [31:0] expected,
@@ -36,14 +33,12 @@ module tb_top;
     );
         if (cpu1.RF.regs[reg_addr] !== expected)
             $display("FAIL [TEST1]: %s | x%0d expected=0x%08h got=0x%08h",
-                     test_name, reg_addr, expected,
-                     cpu1.RF.regs[reg_addr]);
+                     test_name, reg_addr, expected, cpu1.RF.regs[reg_addr]);
         else
             $display("PASS [TEST1]: %s | x%0d = 0x%08h",
                      test_name, reg_addr, expected);
     endtask
 
-    // check task for cpu2
     task automatic check2(
         input [4:0]  reg_addr,
         input [31:0] expected,
@@ -51,35 +46,30 @@ module tb_top;
     );
         if (cpu2.RF.regs[reg_addr] !== expected)
             $display("FAIL [TEST2]: %s | x%0d expected=0x%08h got=0x%08h",
-                     test_name, reg_addr, expected,
-                     cpu2.RF.regs[reg_addr]);
+                     test_name, reg_addr, expected, cpu2.RF.regs[reg_addr]);
         else
             $display("PASS [TEST2]: %s | x%0d = 0x%08h",
                      test_name, reg_addr, expected);
     endtask
 
     initial begin
-        $display("========== CPU INTEGRATION TESTBENCH ==========");
+        $display("========== PIPELINE CPU TESTBENCH ==========");
 
-        // reset both CPUs
         rst1 = 1; rst2 = 1;
         @(posedge clk1); #1;
         rst1 = 0; rst2 = 0;
-        
-        // run both simultaneously
-        repeat(200) @(posedge clk1);
+
+        repeat(300) @(posedge clk1);
         #1;
 
-        // ---- TEST 1 RESULTS ----
         $display("\n--- TEST 1: Arithmetic + Branch + Loop ---");
         check1(5'd1, 32'd5,   "addi x1=5");
         check1(5'd2, 32'd10,  "addi x2=10");
-        check1(5'd3, 32'd15,  "add  x3=x1+x2");
+        check1(5'd3, 32'd15,  "add  x3=15");
         check1(5'd4, 32'd5,   "addi x4=5");
-        check1(5'd5, 32'd150, "loop x5=15*10");
-        check1(5'd6, 32'd0,   "loop x6=0 counter exhausted");
+        check1(5'd5, 32'd150, "loop x5=150");
+        check1(5'd6, 32'd0,   "loop x6=0");
 
-        // ---- TEST 2 RESULTS ----
         $display("\n--- TEST 2: Memory + Logic + LUI ---");
         check2(5'd1,  32'h000000FF, "LBU byte load");
         check2(5'd2,  32'h000007FF, "LHU halfword unsigned");
